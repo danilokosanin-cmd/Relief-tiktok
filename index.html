@@ -1,264 +1,459 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>Relief Wall — TikTok Prototype</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
+<title>Relief Fusion Studio</title>
 <style>
-  html,body{margin:0;height:100%;background:#111;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif;overflow:hidden}
-  #wrap{position:fixed;inset:0;background:#d9d0c4}
-  canvas{width:100%;height:100%;display:block;touch-action:none}
-  .ui{
-    position:fixed;left:14px;right:14px;bottom:max(18px,env(safe-area-inset-bottom));
-    display:flex;gap:10px;justify-content:center;z-index:4;pointer-events:none
-  }
-  button{
-    pointer-events:auto;border:0;border-radius:16px;padding:13px 18px;
-    background:rgba(25,25,25,.84);color:white;font-weight:700;font-size:15px;
-    box-shadow:0 5px 18px rgba(0,0,0,.2);backdrop-filter:blur(12px)
-  }
-  .hint{
-    position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
-    color:#fff;background:rgba(20,20,20,.45);padding:8px 12px;border-radius:14px;
-    font-size:12px;z-index:4;backdrop-filter:blur(10px);white-space:nowrap
-  }
+:root{
+  --glass:rgba(18,18,20,.72);
+  --line:rgba(255,255,255,.16);
+  --txt:#fff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Inter,Arial,sans-serif}
+#app{position:fixed;inset:0}
+#stage{position:absolute;inset:0}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.topbar{
+  position:fixed;left:14px;right:14px;top:max(12px,env(safe-area-inset-top));z-index:10;
+  display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none
+}
+.badge,.iconbtn{
+  pointer-events:auto;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(18px);
+  color:var(--txt);border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.18)
+}
+.badge{padding:10px 13px;font-size:13px;font-weight:700}
+.iconbtn{width:42px;height:42px;border:none;font-size:18px}
+.panel{
+  position:fixed;z-index:12;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));
+  background:rgba(17,17,19,.84);border:1px solid var(--line);backdrop-filter:blur(20px);
+  border-radius:24px;padding:12px;box-shadow:0 14px 40px rgba(0,0,0,.30)
+}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+button,label.upload{
+  min-height:48px;border:none;border-radius:16px;background:#2a2a2d;color:#fff;
+  font-size:14px;font-weight:750;display:flex;align-items:center;justify-content:center;gap:7px
+}
+button.primary{background:#fff;color:#111}
+button:active,label.upload:active{transform:scale(.985)}
+input[type=file]{display:none}
+.settings{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.control{background:#252529;border-radius:16px;padding:10px}
+.control .lab{font-size:11px;color:#bbb;margin-bottom:7px;display:flex;justify-content:space-between}
+input[type=range]{width:100%}
+.small{font-size:10px;color:#aaa;text-align:center;margin-top:7px;line-height:1.25}
+.hiddenUI .panel,.hiddenUI .topbar{display:none}
+#toast{
+  position:fixed;left:50%;top:90px;transform:translateX(-50%);z-index:20;
+  background:rgba(0,0,0,.72);color:white;padding:10px 14px;border-radius:14px;font-size:12px;
+  opacity:0;transition:.25s;pointer-events:none
+}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="c"></canvas></div>
-<div class="hint">Relief mural • angle réaliste • 9:16</div>
-<div class="ui">
-  <button id="play">▶︎ Lancer</button>
-  <button id="reset">↺ Rejouer</button>
-  <button id="ui">Masquer boutons</button>
+<div id="app">
+  <div id="stage"></div>
+
+  <div class="topbar">
+    <div class="badge">Relief Fusion Studio</div>
+    <button class="iconbtn" id="hideBtn">◎</button>
+  </div>
+
+  <div id="toast"></div>
+
+  <div class="panel" id="panel">
+    <div class="row">
+      <label class="upload">⬆️ Image du haut<input id="topFile" type="file" accept="image/*"></label>
+      <label class="upload">⬇️ Image du bas<input id="bottomFile" type="file" accept="image/*"></label>
+    </div>
+
+    <div class="row3">
+      <button class="primary" id="playBtn">▶︎ Lancer</button>
+      <button id="resetBtn">↺ Rejouer</button>
+      <button id="fullscreenBtn">⛶ Plein écran</button>
+    </div>
+
+    <div class="settings">
+      <div class="control">
+        <div class="lab"><span>Friction</span><span id="frVal">72%</span></div>
+        <input id="friction" type="range" min="0" max="100" value="72">
+      </div>
+      <div class="control">
+        <div class="lab"><span>Angle caméra</span><span id="angVal">16°</span></div>
+        <input id="angle" type="range" min="-25" max="25" value="16">
+      </div>
+      <div class="control">
+        <div class="lab"><span>Relief</span><span id="depthVal">34</span></div>
+        <input id="depth" type="range" min="10" max="70" value="34">
+      </div>
+      <div class="control">
+        <div class="lab"><span>Lamelles</span><span id="slatVal">42</span></div>
+        <input id="slats" type="range" min="24" max="64" value="42">
+      </div>
+    </div>
+    <div class="small">Astuce : appuie sur ◎ pour masquer l’interface avant l’enregistrement d’écran. Le relief est calculé à partir de la luminosité de tes images.</div>
+  </div>
 </div>
-<script>
-const c=document.getElementById('c'),ctx=c.getContext('2d');
-let W=0,H=0,dpr=1,t=0,playing=false,start=0,hideUI=false;
 
-function resize(){
-  dpr=Math.min(devicePixelRatio||1,2);
-  W=innerWidth; H=innerHeight;
-  c.width=W*dpr; c.height=H*dpr;
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+
+const stage = document.getElementById('stage');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xd8d0c7);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, .1, 100);
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+stage.appendChild(renderer.domElement);
+
+// ---------- ROOM ----------
+const wallMat = new THREE.MeshStandardMaterial({color:0xd8d0c7, roughness:.92, metalness:0});
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(11, 18), wallMat);
+wall.position.set(0, 1.2, -1.0);
+wall.receiveShadow = true;
+scene.add(wall);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 8, 1, 1),
+  new THREE.MeshStandardMaterial({color:0x7c593f, roughness:.82})
+);
+floor.rotation.x = -Math.PI/2;
+floor.position.set(0,-4.0,2.2);
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Baseboard
+const base = new THREE.Mesh(
+  new THREE.BoxGeometry(11,.12,.16),
+  new THREE.MeshStandardMaterial({color:0xeee8e2,roughness:.85})
+);
+base.position.set(0,-3.87,-.86);
+base.castShadow = base.receiveShadow = true;
+scene.add(base);
+
+// Right console table
+const darkWood = new THREE.MeshStandardMaterial({color:0x2c211c,roughness:.65});
+function box(w,h,d,x,y,z,mat=darkWood){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;scene.add(m);return m;
 }
-addEventListener('resize',resize); resize();
+box(2.1,.14,.72,4.1,-1.75,-.2);
+box(.16,2.15,.16,3.25,-2.75,-.15);
+box(.16,2.15,.16,4.95,-2.75,-.15);
 
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const ease=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
-
-function rr(x,y,w,h,r){
-  ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();
-}
-function poly(p){
-  ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);
-  for(let i=1;i<p.length;i++)ctx.lineTo(p[i][0],p[i][1]);
-  ctx.closePath();ctx.fill();
-}
-function shadow(a=0.2,b=20,y=8){
-  ctx.shadowColor=`rgba(0,0,0,${a})`;ctx.shadowBlur=b;ctx.shadowOffsetY=y;
-}
-function noShadow(){ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;}
-
-function reliefProfile(nx,ny){
-  // nx,ny in -1..1. A stylized bat-cowl / human-mask relief
-  let v=0;
-  const g=(x,y,sx,sy,a)=>a*Math.exp(-((nx-x)*(nx-x)/(sx*sx)+(ny-y)*(ny-y)/(sy*sy)));
-  v+=g(0,-.30,.52,.42,1.00); // forehead
-  v+=g(-.36,-.18,.16,.12,.28)+g(.36,-.18,.16,.12,.28); // brows
-  v+=g(0,.02,.11,.38,.68); // nose
-  v+=g(-.28,.18,.22,.18,.35)+g(.28,.18,.22,.18,.35); // cheeks
-  v+=g(0,.42,.32,.18,.45); // mouth/chin
-  v-=g(0,.24,.24,.09,.18);
-  // bat ears
-  if(ny<-.52){
-    const yy=(-.52-ny)/.48;
-    const earL=clamp(1-Math.abs(nx+.52)/(0.14*(1-yy*.58)),0,1)*yy;
-    const earR=clamp(1-Math.abs(nx-.52)/(0.14*(1-yy*.58)),0,1)*yy;
-    v+=.95*Math.max(earL,earR);
-  }
-  // outer head mask
-  const head=(nx*nx/(.72*.72)+Math.pow((ny+.02)/.9,2));
-  if(head>1.02 && ny>-.55) v*=clamp((1.18-head)*6,0,1);
-  return clamp(v,0,1.25);
-}
-
-function drawRoom(){
-  // wall
-  const g=ctx.createLinearGradient(0,0,W,H);
-  g.addColorStop(0,'#ddd5cc'); g.addColorStop(.65,'#d5cbc0'); g.addColorStop(1,'#cbbfb2');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  // subtle wall grain
-  ctx.globalAlpha=.055;
-  for(let i=0;i<120;i++){
-    const y=(i*47)%H, x=(i*83)%W;
-    ctx.fillStyle=i%2?'#fff':'#7e746c';
-    ctx.fillRect(x,y,18+(i%5)*8,1);
-  }
-  ctx.globalAlpha=1;
-
-  // floor
-  const fy=H*.83;
-  ctx.fillStyle='#8e694c';ctx.fillRect(0,fy,W,H-fy);
-  ctx.globalAlpha=.18;
-  for(let i=0;i<14;i++){
-    const yy=fy+i*(H-fy)/14;
-    ctx.fillStyle='#3b291e';ctx.fillRect(0,yy,W,1);
-  }
-  ctx.globalAlpha=1;
-
-  // skirting board
-  ctx.fillStyle='#eee5dc';ctx.fillRect(0,fy-5,W,6);
-  ctx.fillStyle='rgba(0,0,0,.08)';ctx.fillRect(0,fy+1,W,2);
-
-  // chair on right, cropped like real room
-  const cx=W*.80, cy=H*.70, s=W/390;
-  shadow(.16,13,6);
-  ctx.fillStyle='#4a342b';
-  rr(cx,cy,95*s,18*s,3*s);
-  rr(cx+7*s,cy-70*s,11*s,82*s,2*s);
-  rr(cx+80*s,cy-78*s,11*s,90*s,2*s);
-  ctx.fillStyle='#593c30';
-  rr(cx+8*s,cy-66*s,78*s,52*s,4*s);
-  ctx.fillStyle='#3c2d27'; rr(cx+5*s,cy+10*s,10*s,105*s,3*s); rr(cx+80*s,cy+10*s,10*s,105*s,3*s);
-  noShadow();
-
-  // plant in ceramic pot, further right
-  const px=W*.91, py=H*.60;
-  ctx.strokeStyle='#667058';ctx.lineWidth=3*s;ctx.lineCap='round';
-  for(let i=0;i<6;i++){
-    ctx.beginPath();ctx.moveTo(px,py+55*s);ctx.quadraticCurveTo(px+(i-2.5)*14*s,py+25*s,px+(i-2.5)*17*s,py-(i%2)*18*s);ctx.stroke();
-  }
-  ctx.fillStyle='#798064';
-  for(let i=0;i<8;i++){
-    ctx.beginPath();ctx.ellipse(px+(i-3.5)*10*s,py+(i%3)*8*s,10*s,4*s,(i-3)*.25,0,Math.PI*2);ctx.fill();
-  }
-  ctx.fillStyle='#b7a797';rr(px-21*s,py+50*s,42*s,32*s,8*s);
+// Pot
+const pot = new THREE.Mesh(
+  new THREE.CylinderGeometry(.38,.30,.62,24),
+  new THREE.MeshStandardMaterial({color:0xb7a99a,roughness:.9})
+);
+pot.position.set(4.15,-1.34,-.05); pot.castShadow=true;scene.add(pot);
+// Plant stems/leaves
+const green = new THREE.MeshStandardMaterial({color:0x53634d,roughness:.9});
+for(let i=0;i<11;i++){
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.018,.024,1.25,8),green);
+  stem.position.set(4.15 + (i-5)*.035,-.55,-.06);
+  stem.rotation.z = (i-5)*.06;
+  scene.add(stem);
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(.16,10,7),green);
+  leaf.scale.set(1.6,.42,.55);
+  leaf.position.set(4.15+(i-5)*.08,-.05 + (i%3)*.13,-.04);
+  leaf.rotation.z=(i-5)*.22;scene.add(leaf);
 }
 
-function panelGeometry(progress){
-  // perspective-ish wall placement. slight right-side view, not straight-on
-  const pw=Math.min(W*.60,H*.32);
-  const ph=pw*.92;
-  const left=W*.17, gap=4;
-  const baseTop=H*.31;
-  const slide=ph+gap;
-  const topY=baseTop - slide + progress*slide;
-  const bottomY=baseTop+gap;
-  return {left,pw,ph,topY,bottomY};
+// Accent chair cropped at right
+const seatMat = new THREE.MeshStandardMaterial({color:0x4a3328,roughness:.75});
+box(1.35,.16,1.1,4.4,-3.0,1.0,seatMat);
+box(.13,1.55,.13,3.9,-3.55,1.35,seatMat);
+box(.13,1.55,.13,4.9,-3.55,1.35,seatMat);
+
+// lights
+const hemi = new THREE.HemisphereLight(0xfff7ef,0x5e5148,1.8);scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffe4c9,4.0);
+key.position.set(-4,5,6);key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+scene.add(key);
+const fill = new THREE.PointLight(0xffd7b3,35,12,2);
+fill.position.set(3,1.5,4);scene.add(fill);
+
+// ---------- RELIEF ----------
+const topGroup = new THREE.Group();
+const bottomGroup = new THREE.Group();
+scene.add(topGroup,bottomGroup);
+
+const panelW = 5.3, panelH=3.25;
+const panelZ = .02;
+const yBottom = -1.55;
+const yTopStart = 2.28;
+const yTopEnd = -1.43;   // almost fully merged with bottom
+let topCanvas=null, bottomCanvas=null;
+let topCtx=null,bottomCtx=null;
+let slatCount=42, reliefDepth=.34;
+
+function makeDefaultCanvas(kind='top'){
+  const c=document.createElement('canvas');c.width=700;c.height=700;
+  const x=c.getContext('2d');
+  const g=x.createRadialGradient(350,320,20,350,350,330);
+  if(kind==='top'){g.addColorStop(0,'#7d5543');g.addColorStop(.55,'#3d2922');g.addColorStop(1,'#17100e')}
+  else {g.addColorStop(0,'#ead0a2');g.addColorStop(.55,'#be9868');g.addColorStop(1,'#80603f')}
+  x.fillStyle=g;x.fillRect(0,0,700,700);
+  // face-like relief map
+  x.fillStyle=kind==='top'?'rgba(235,190,150,.9)':'rgba(255,240,210,.9)';
+  x.beginPath();x.ellipse(350,350,170,235,0,0,Math.PI*2);x.fill();
+  x.fillStyle=kind==='top'?'rgba(20,10,10,.95)':'rgba(80,55,34,.75)';
+  x.beginPath();x.moveTo(240,210);x.lineTo(280,60);x.lineTo(320,230);x.fill();
+  x.beginPath();x.moveTo(460,210);x.lineTo(420,60);x.lineTo(380,230);x.fill();
+  x.fillRect(260,305,65,24);x.fillRect(375,305,65,24);
+  return c;
+}
+topCanvas=makeDefaultCanvas('top'); bottomCanvas=makeDefaultCanvas('bottom');
+
+function getSampler(canvas){
+  const tmp=document.createElement('canvas');tmp.width=256;tmp.height=256;
+  const c=tmp.getContext('2d');c.drawImage(canvas,0,0,256,256);
+  const data=c.getImageData(0,0,256,256).data;
+  return (u,v)=>{
+    u=Math.max(0,Math.min(1,u));v=Math.max(0,Math.min(1,v));
+    const x=Math.min(255,Math.floor(u*255)),y=Math.min(255,Math.floor((1-v)*255));
+    const i=(y*256+x)*4;
+    return (data[i]*.2126+data[i+1]*.7152+data[i+2]*.0722)/255;
+  };
 }
 
-function drawPanel(y, color, phase, moving=false){
-  const {left,pw,ph}=panelGeometry(0);
-  const skew=pw*.055; // gives camera angle / perspective
-  ctx.save();
-  ctx.translate(left,y);
-  ctx.transform(1,0,-0.07,1,skew*.6,0);
-
-  shadow(.22,18,9);
-  ctx.fillStyle='rgba(65,47,39,.20)';rr(-7,4,pw+16,ph+10,4);
-  noShadow();
-
-  // frame backing
-  const bg=ctx.createLinearGradient(0,0,pw,0);
-  if(color==='brown'){bg.addColorStop(0,'#3b2b24');bg.addColorStop(.5,'#6a4a3b');bg.addColorStop(1,'#2d211c');}
-  else {bg.addColorStop(0,'#b59466');bg.addColorStop(.5,'#dbc093');bg.addColorStop(1,'#9a774c');}
-  ctx.fillStyle=bg;rr(0,0,pw,ph,3);
-
-  const N=35, sw=pw/N, cx=pw*.5, cy=ph*.5;
-  for(let i=0;i<N;i++){
-    if(i%2!==phase) continue;
-    const x=i*sw;
-    // depth sampled along each slat, with silhouette-based extension
-    ctx.beginPath();
-    let started=false;
-    for(let j=0;j<=70;j++){
-      const yy=j/70*ph;
-      const nx=((x+sw*.5)-cx)/(pw*.46);
-      const ny=(yy-cy)/(ph*.48);
-      const d=reliefProfile(nx,ny);
-      let out=d*pw*.12;
-      const xx=x - out;
-      if(!started){ctx.moveTo(xx,yy);started=true}else ctx.lineTo(xx,yy);
+function clearGroup(g){
+  while(g.children.length){
+    const o=g.children.pop();
+    if(o.geometry)o.geometry.dispose();
+    if(o.material){
+      if(o.material.map)o.material.map.dispose();
+      o.material.dispose();
     }
-    for(let j=70;j>=0;j--){
-      const yy=j/70*ph;
-      const nx=((x+sw*.5)-cx)/(pw*.46);
-      const ny=(yy-cy)/(ph*.48);
-      const d=reliefProfile(nx,ny);
-      const out=d*pw*.12;
-      ctx.lineTo(x+sw*.72 + out*.06,yy);
-    }
-    ctx.closePath();
+  }
+}
 
-    const lg=ctx.createLinearGradient(x-sw*.1,0,x+sw,0);
-    if(color==='brown'){
-      lg.addColorStop(0,'#2e211d');lg.addColorStop(.32,'#5a3b31');lg.addColorStop(.65,'#765346');lg.addColorStop(1,'#34241f');
-    } else {
-      lg.addColorStop(0,'#8f704d');lg.addColorStop(.32,'#c6a276');lg.addColorStop(.68,'#e0c59b');lg.addColorStop(1,'#92704c');
-    }
-    ctx.fillStyle=lg;
-    ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=3;ctx.shadowOffsetX=2;ctx.fill();
-    noShadow();
+function textureFromCanvas(c){
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
 
-    // felt grain
-    ctx.globalAlpha=.10;
-    ctx.fillStyle='#000';
-    for(let k=0;k<3;k++){
-      const gy=((i*31+k*57)%97)/97*ph;
-      ctx.fillRect(x+sw*.2,gy,sw*.38,.7);
+function buildPanel(group, canvas, isTop){
+  clearGroup(group);
+  const sampler=getSampler(canvas);
+  const texture=textureFromCanvas(canvas);
+  const sw=panelW/slatCount;
+  const segY=54;
+
+  // backing frame
+  const backing = new THREE.Mesh(
+    new THREE.BoxGeometry(panelW+.12,panelH+.12,.14),
+    new THREE.MeshStandardMaterial({
+      color:isTop?0x2d211c:0x9d7b54,roughness:.94,metalness:0
+    })
+  );
+  backing.position.z=-.08;backing.castShadow=true;backing.receiveShadow=true;
+  group.add(backing);
+
+  for(let i=0;i<slatCount;i++){
+    // alternating slats: top uses even, bottom uses odd
+    if((i%2)!==(isTop?0:1)) continue;
+
+    const geom=new THREE.PlaneGeometry(sw*.84,panelH,2,segY);
+    const pos=geom.attributes.position;
+    const u=(i+.5)/slatCount;
+    for(let j=0;j<pos.count;j++){
+      const localY=pos.getY(j);
+      const v=(localY/panelH)+.5;
+      let lum=sampler(u,v);
+      // stronger shaping around mid-tones, less flat
+      let z=(lum-.45)*reliefDepth*2.6;
+      z += Math.sin(v*Math.PI)*.04;
+      pos.setZ(j,z);
     }
-    ctx.globalAlpha=1;
+    geom.computeVertexNormals();
+
+    const mat=new THREE.MeshStandardMaterial({
+      map:texture,
+      roughness:.96,
+      metalness:0,
+      side:THREE.DoubleSide
+    });
+    const mesh=new THREE.Mesh(geom,mat);
+    mesh.position.x=-panelW/2 + sw*(i+.5);
+    mesh.position.z=.08;
+    mesh.castShadow=true;mesh.receiveShadow=true;
+    group.add(mesh);
+
+    // side thickness
+    const edge=new THREE.Mesh(
+      new THREE.BoxGeometry(sw*.74,panelH,.11),
+      new THREE.MeshStandardMaterial({
+        color:isTop?0x3a2922:0xb08a60,
+        roughness:.97
+      })
+    );
+    edge.position.set(mesh.position.x,0,-.005);
+    edge.castShadow=true;group.add(edge);
   }
 
-  // subtle frame border
-  ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;ctx.strokeRect(.5,.5,pw-1,ph-1);
-  ctx.restore();
+  group.position.z=.02;
 }
 
-function draw(){
-  drawRoom();
-  let p=t;
-  const {topY,bottomY}=panelGeometry(p);
-  drawPanel(bottomY,'tan',1,false);
-  drawPanel(topY,'brown',0,true);
+function rebuild(){
+  slatCount=+document.getElementById('slats').value;
+  reliefDepth=+document.getElementById('depth').value/100;
+  buildPanel(topGroup,topCanvas,true);
+  buildPanel(bottomGroup,bottomCanvas,false);
+  topGroup.position.set(-.4,yTopStart,0);
+  bottomGroup.position.set(-.4,yBottom,0);
+  applyAngle();
+}
+rebuild();
 
-  // contact shadow where panels converge
-  const {left,pw}=panelGeometry(0);
-  const gy=bottomY-3;
-  const gr=ctx.createLinearGradient(0,gy-12,0,gy+8);
-  gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(.6,'rgba(0,0,0,.10)');gr.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=gr;ctx.fillRect(left-10,gy-12,pw+30,24);
+// ---------- CAMERA / ANGLE ----------
+function applyAngle(){
+  const deg=+document.getElementById('angle').value;
+  const rad=THREE.MathUtils.degToRad(deg);
+  camera.position.set(Math.sin(rad)*8.5,.2,Math.cos(rad)*8.5);
+  camera.lookAt(-.1,-.35,0);
+}
+applyAngle();
 
-  // slight vignette for phone-video realism
-  const vg=ctx.createRadialGradient(W*.48,H*.45,Math.min(W,H)*.2,W*.48,H*.45,Math.max(W,H)*.72);
-  vg.addColorStop(.55,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.16)');
-  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+// ---------- PHYSICS-LIKE MOTION ----------
+let playing=false;
+let y=yTopStart;
+let velocity=0;
+let last=performance.now();
+let settle=0;
+
+function frictionValue(){return +document.getElementById('friction').value/100}
+
+function resetMotion(){
+  playing=false;velocity=0;settle=0;y=yTopStart;
+  topGroup.position.y=y;
+}
+function startMotion(){
+  resetMotion();playing=true;
 }
 
-function loop(ts){
-  if(playing){
-    if(!start)start=ts;
-    const dur=8500;
-    const q=clamp((ts-start)/dur,0,1);
-    t=ease(q);
-    if(q>=1){playing=false;start=0}
+function updateMotion(dt){
+  if(!playing)return;
+  const f=frictionValue();
+
+  // controlled gravity
+  const gravity=1.65;
+  velocity += gravity*dt;
+
+  // air / guide friction
+  velocity *= Math.pow(0.985 - f*.006, dt*60);
+
+  // as the upper panel enters the lower one, slat contact adds resistance
+  const contactStart=yBottom + panelH*.92;
+  if(y < contactStart){
+    const penetration=Math.min(1,(contactStart-y)/(panelH*.78));
+    const contactDrag=(2.2 + f*8.0)*penetration;
+    velocity -= contactDrag*velocity*dt;
+
+    // subtle micro-stick-slip, visible but not cartoonish
+    const stick=Math.sin(performance.now()*.012)*.018*penetration*f;
+    y += stick*dt*60;
   }
-  draw();requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
 
-document.getElementById('play').onclick=()=>{t=0;start=0;playing=true};
-document.getElementById('reset').onclick=()=>{t=0;start=0;playing=false};
-document.getElementById('ui').onclick=()=>{
-  hideUI=!hideUI;
-  document.querySelector('.hint').style.display=hideUI?'none':'block';
-  document.querySelector('.ui').style.opacity=hideUI?'0':'1';
-  if(hideUI){
-    setTimeout(()=>{document.querySelector('.ui').style.pointerEvents='none'},250)
-  } else document.querySelector('.ui').style.pointerEvents='auto';
+  y -= velocity*dt;
+
+  // final soft stop
+  if(y<=yTopEnd){
+    y=yTopEnd;
+    velocity*=.15;
+    settle++;
+    if(settle>8){playing=false;velocity=0;}
+  }
+  topGroup.position.y=y;
+}
+
+// ---------- IMAGE LOAD ----------
+function loadIntoCanvas(file, cb){
+  const img=new Image();
+  img.onload=()=>{
+    const c=document.createElement('canvas');
+    c.width=900;c.height=900;
+    const x=c.getContext('2d');
+    x.fillStyle='#222';x.fillRect(0,0,900,900);
+    const r=Math.max(900/img.width,900/img.height);
+    const w=img.width*r,h=img.height*r;
+    x.drawImage(img,(900-w)/2,(900-h)/2,w,h);
+    cb(c);
+    URL.revokeObjectURL(img.src);
+  };
+  img.src=URL.createObjectURL(file);
+}
+document.getElementById('topFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  loadIntoCanvas(f,c=>{topCanvas=c;rebuild();toast('Image du haut chargée')});
 };
-c.addEventListener('click',()=>{ if(hideUI){document.querySelector('.ui').style.opacity='1';document.querySelector('.ui').style.pointerEvents='auto';hideUI=false;} });
+document.getElementById('bottomFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  loadIntoCanvas(f,c=>{bottomCanvas=c;rebuild();toast('Image du bas chargée')});
+};
+
+// ---------- UI ----------
+const friction=document.getElementById('friction'),
+      angle=document.getElementById('angle'),
+      depth=document.getElementById('depth'),
+      slats=document.getElementById('slats');
+
+friction.oninput=()=>document.getElementById('frVal').textContent=friction.value+'%';
+angle.oninput=()=>{document.getElementById('angVal').textContent=angle.value+'°';applyAngle()};
+depth.oninput=()=>document.getElementById('depthVal').textContent=depth.value;
+slats.oninput=()=>document.getElementById('slatVal').textContent=slats.value;
+depth.onchange=rebuild; slats.onchange=rebuild;
+
+document.getElementById('playBtn').onclick=startMotion;
+document.getElementById('resetBtn').onclick=resetMotion;
+document.getElementById('fullscreenBtn').onclick=async()=>{
+  try{
+    if(document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+    else if(renderer.domElement.webkitRequestFullscreen) renderer.domElement.webkitRequestFullscreen();
+  }catch(e){}
+};
+document.getElementById('hideBtn').onclick=()=>document.body.classList.toggle('hiddenUI');
+renderer.domElement.addEventListener('click',()=> {
+  if(document.body.classList.contains('hiddenUI')) document.body.classList.remove('hiddenUI');
+});
+
+function toast(t){
+  const el=document.getElementById('toast');el.textContent=t;el.style.opacity=1;
+  clearTimeout(window.__tt);window.__tt=setTimeout(()=>el.style.opacity=0,1400);
+}
+
+// resize
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+// ---------- RENDER ----------
+function animate(now){
+  const dt=Math.min(.033,(now-last)/1000);last=now;
+  updateMotion(dt);
+
+  // tiny handheld drift for realism, very subtle
+  const driftX=Math.sin(now*.00025)*.015;
+  const driftY=Math.cos(now*.00031)*.012;
+  camera.rotation.z=driftX*.03;
+  camera.position.y=.2+driftY;
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
