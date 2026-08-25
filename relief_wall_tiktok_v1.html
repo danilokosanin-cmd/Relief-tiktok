@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Relief Wall — TikTok Prototype</title>
+<style>
+  html,body{margin:0;height:100%;background:#111;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;background:#d9d0c4}
+  canvas{width:100%;height:100%;display:block;touch-action:none}
+  .ui{
+    position:fixed;left:14px;right:14px;bottom:max(18px,env(safe-area-inset-bottom));
+    display:flex;gap:10px;justify-content:center;z-index:4;pointer-events:none
+  }
+  button{
+    pointer-events:auto;border:0;border-radius:16px;padding:13px 18px;
+    background:rgba(25,25,25,.84);color:white;font-weight:700;font-size:15px;
+    box-shadow:0 5px 18px rgba(0,0,0,.2);backdrop-filter:blur(12px)
+  }
+  .hint{
+    position:fixed;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    color:#fff;background:rgba(20,20,20,.45);padding:8px 12px;border-radius:14px;
+    font-size:12px;z-index:4;backdrop-filter:blur(10px);white-space:nowrap
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div class="hint">Relief mural • angle réaliste • 9:16</div>
+<div class="ui">
+  <button id="play">▶︎ Lancer</button>
+  <button id="reset">↺ Rejouer</button>
+  <button id="ui">Masquer boutons</button>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W=0,H=0,dpr=1,t=0,playing=false,start=0,hideUI=false;
+
+function resize(){
+  dpr=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  c.width=W*dpr; c.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',resize); resize();
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+
+function rr(x,y,w,h,r){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();
+}
+function poly(p){
+  ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);
+  for(let i=1;i<p.length;i++)ctx.lineTo(p[i][0],p[i][1]);
+  ctx.closePath();ctx.fill();
+}
+function shadow(a=0.2,b=20,y=8){
+  ctx.shadowColor=`rgba(0,0,0,${a})`;ctx.shadowBlur=b;ctx.shadowOffsetY=y;
+}
+function noShadow(){ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;}
+
+function reliefProfile(nx,ny){
+  // nx,ny in -1..1. A stylized bat-cowl / human-mask relief
+  let v=0;
+  const g=(x,y,sx,sy,a)=>a*Math.exp(-((nx-x)*(nx-x)/(sx*sx)+(ny-y)*(ny-y)/(sy*sy)));
+  v+=g(0,-.30,.52,.42,1.00); // forehead
+  v+=g(-.36,-.18,.16,.12,.28)+g(.36,-.18,.16,.12,.28); // brows
+  v+=g(0,.02,.11,.38,.68); // nose
+  v+=g(-.28,.18,.22,.18,.35)+g(.28,.18,.22,.18,.35); // cheeks
+  v+=g(0,.42,.32,.18,.45); // mouth/chin
+  v-=g(0,.24,.24,.09,.18);
+  // bat ears
+  if(ny<-.52){
+    const yy=(-.52-ny)/.48;
+    const earL=clamp(1-Math.abs(nx+.52)/(0.14*(1-yy*.58)),0,1)*yy;
+    const earR=clamp(1-Math.abs(nx-.52)/(0.14*(1-yy*.58)),0,1)*yy;
+    v+=.95*Math.max(earL,earR);
+  }
+  // outer head mask
+  const head=(nx*nx/(.72*.72)+Math.pow((ny+.02)/.9,2));
+  if(head>1.02 && ny>-.55) v*=clamp((1.18-head)*6,0,1);
+  return clamp(v,0,1.25);
+}
+
+function drawRoom(){
+  // wall
+  const g=ctx.createLinearGradient(0,0,W,H);
+  g.addColorStop(0,'#ddd5cc'); g.addColorStop(.65,'#d5cbc0'); g.addColorStop(1,'#cbbfb2');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // subtle wall grain
+  ctx.globalAlpha=.055;
+  for(let i=0;i<120;i++){
+    const y=(i*47)%H, x=(i*83)%W;
+    ctx.fillStyle=i%2?'#fff':'#7e746c';
+    ctx.fillRect(x,y,18+(i%5)*8,1);
+  }
+  ctx.globalAlpha=1;
+
+  // floor
+  const fy=H*.83;
+  ctx.fillStyle='#8e694c';ctx.fillRect(0,fy,W,H-fy);
+  ctx.globalAlpha=.18;
+  for(let i=0;i<14;i++){
+    const yy=fy+i*(H-fy)/14;
+    ctx.fillStyle='#3b291e';ctx.fillRect(0,yy,W,1);
+  }
+  ctx.globalAlpha=1;
+
+  // skirting board
+  ctx.fillStyle='#eee5dc';ctx.fillRect(0,fy-5,W,6);
+  ctx.fillStyle='rgba(0,0,0,.08)';ctx.fillRect(0,fy+1,W,2);
+
+  // chair on right, cropped like real room
+  const cx=W*.80, cy=H*.70, s=W/390;
+  shadow(.16,13,6);
+  ctx.fillStyle='#4a342b';
+  rr(cx,cy,95*s,18*s,3*s);
+  rr(cx+7*s,cy-70*s,11*s,82*s,2*s);
+  rr(cx+80*s,cy-78*s,11*s,90*s,2*s);
+  ctx.fillStyle='#593c30';
+  rr(cx+8*s,cy-66*s,78*s,52*s,4*s);
+  ctx.fillStyle='#3c2d27'; rr(cx+5*s,cy+10*s,10*s,105*s,3*s); rr(cx+80*s,cy+10*s,10*s,105*s,3*s);
+  noShadow();
+
+  // plant in ceramic pot, further right
+  const px=W*.91, py=H*.60;
+  ctx.strokeStyle='#667058';ctx.lineWidth=3*s;ctx.lineCap='round';
+  for(let i=0;i<6;i++){
+    ctx.beginPath();ctx.moveTo(px,py+55*s);ctx.quadraticCurveTo(px+(i-2.5)*14*s,py+25*s,px+(i-2.5)*17*s,py-(i%2)*18*s);ctx.stroke();
+  }
+  ctx.fillStyle='#798064';
+  for(let i=0;i<8;i++){
+    ctx.beginPath();ctx.ellipse(px+(i-3.5)*10*s,py+(i%3)*8*s,10*s,4*s,(i-3)*.25,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle='#b7a797';rr(px-21*s,py+50*s,42*s,32*s,8*s);
+}
+
+function panelGeometry(progress){
+  // perspective-ish wall placement. slight right-side view, not straight-on
+  const pw=Math.min(W*.60,H*.32);
+  const ph=pw*.92;
+  const left=W*.17, gap=4;
+  const baseTop=H*.31;
+  const slide=ph+gap;
+  const topY=baseTop - slide + progress*slide;
+  const bottomY=baseTop+gap;
+  return {left,pw,ph,topY,bottomY};
+}
+
+function drawPanel(y, color, phase, moving=false){
+  const {left,pw,ph}=panelGeometry(0);
+  const skew=pw*.055; // gives camera angle / perspective
+  ctx.save();
+  ctx.translate(left,y);
+  ctx.transform(1,0,-0.07,1,skew*.6,0);
+
+  shadow(.22,18,9);
+  ctx.fillStyle='rgba(65,47,39,.20)';rr(-7,4,pw+16,ph+10,4);
+  noShadow();
+
+  // frame backing
+  const bg=ctx.createLinearGradient(0,0,pw,0);
+  if(color==='brown'){bg.addColorStop(0,'#3b2b24');bg.addColorStop(.5,'#6a4a3b');bg.addColorStop(1,'#2d211c');}
+  else {bg.addColorStop(0,'#b59466');bg.addColorStop(.5,'#dbc093');bg.addColorStop(1,'#9a774c');}
+  ctx.fillStyle=bg;rr(0,0,pw,ph,3);
+
+  const N=35, sw=pw/N, cx=pw*.5, cy=ph*.5;
+  for(let i=0;i<N;i++){
+    if(i%2!==phase) continue;
+    const x=i*sw;
+    // depth sampled along each slat, with silhouette-based extension
+    ctx.beginPath();
+    let started=false;
+    for(let j=0;j<=70;j++){
+      const yy=j/70*ph;
+      const nx=((x+sw*.5)-cx)/(pw*.46);
+      const ny=(yy-cy)/(ph*.48);
+      const d=reliefProfile(nx,ny);
+      let out=d*pw*.12;
+      const xx=x - out;
+      if(!started){ctx.moveTo(xx,yy);started=true}else ctx.lineTo(xx,yy);
+    }
+    for(let j=70;j>=0;j--){
+      const yy=j/70*ph;
+      const nx=((x+sw*.5)-cx)/(pw*.46);
+      const ny=(yy-cy)/(ph*.48);
+      const d=reliefProfile(nx,ny);
+      const out=d*pw*.12;
+      ctx.lineTo(x+sw*.72 + out*.06,yy);
+    }
+    ctx.closePath();
+
+    const lg=ctx.createLinearGradient(x-sw*.1,0,x+sw,0);
+    if(color==='brown'){
+      lg.addColorStop(0,'#2e211d');lg.addColorStop(.32,'#5a3b31');lg.addColorStop(.65,'#765346');lg.addColorStop(1,'#34241f');
+    } else {
+      lg.addColorStop(0,'#8f704d');lg.addColorStop(.32,'#c6a276');lg.addColorStop(.68,'#e0c59b');lg.addColorStop(1,'#92704c');
+    }
+    ctx.fillStyle=lg;
+    ctx.shadowColor='rgba(0,0,0,.18)';ctx.shadowBlur=3;ctx.shadowOffsetX=2;ctx.fill();
+    noShadow();
+
+    // felt grain
+    ctx.globalAlpha=.10;
+    ctx.fillStyle='#000';
+    for(let k=0;k<3;k++){
+      const gy=((i*31+k*57)%97)/97*ph;
+      ctx.fillRect(x+sw*.2,gy,sw*.38,.7);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // subtle frame border
+  ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=1;ctx.strokeRect(.5,.5,pw-1,ph-1);
+  ctx.restore();
+}
+
+function draw(){
+  drawRoom();
+  let p=t;
+  const {topY,bottomY}=panelGeometry(p);
+  drawPanel(bottomY,'tan',1,false);
+  drawPanel(topY,'brown',0,true);
+
+  // contact shadow where panels converge
+  const {left,pw}=panelGeometry(0);
+  const gy=bottomY-3;
+  const gr=ctx.createLinearGradient(0,gy-12,0,gy+8);
+  gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(.6,'rgba(0,0,0,.10)');gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gr;ctx.fillRect(left-10,gy-12,pw+30,24);
+
+  // slight vignette for phone-video realism
+  const vg=ctx.createRadialGradient(W*.48,H*.45,Math.min(W,H)*.2,W*.48,H*.45,Math.max(W,H)*.72);
+  vg.addColorStop(.55,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.16)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+}
+
+function loop(ts){
+  if(playing){
+    if(!start)start=ts;
+    const dur=8500;
+    const q=clamp((ts-start)/dur,0,1);
+    t=ease(q);
+    if(q>=1){playing=false;start=0}
+  }
+  draw();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById('play').onclick=()=>{t=0;start=0;playing=true};
+document.getElementById('reset').onclick=()=>{t=0;start=0;playing=false};
+document.getElementById('ui').onclick=()=>{
+  hideUI=!hideUI;
+  document.querySelector('.hint').style.display=hideUI?'none':'block';
+  document.querySelector('.ui').style.opacity=hideUI?'0':'1';
+  if(hideUI){
+    setTimeout(()=>{document.querySelector('.ui').style.pointerEvents='none'},250)
+  } else document.querySelector('.ui').style.pointerEvents='auto';
+};
+c.addEventListener('click',()=>{ if(hideUI){document.querySelector('.ui').style.opacity='1';document.querySelector('.ui').style.pointerEvents='auto';hideUI=false;} });
+</script>
+</body>
+</html>
